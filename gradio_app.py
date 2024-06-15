@@ -3,13 +3,14 @@ import os
 os.environ['HF_HOME'] = os.path.join(os.path.dirname(__file__), 'hf_download')
 HF_TOKEN = None
 
-import lib_omost.memory_management as memory_management
+import tempfile
 import uuid
 
-import torch
-import numpy as np
 import gradio as gr
-import tempfile
+import numpy as np
+import torch
+
+import lib_omost.memory_management as memory_management
 
 gradio_temp_dir = os.path.join(tempfile.gettempdir(), 'gradio')
 os.makedirs(gradio_temp_dir, exist_ok=True)
@@ -21,17 +22,16 @@ from transformers.models.phi3.modeling_phi3 import Phi3PreTrainedModel
 
 Phi3PreTrainedModel._supports_sdpa = True
 
-from PIL import Image
-from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
 from diffusers import AutoencoderKL, UNet2DConditionModel
 from diffusers.models.attention_processor import AttnProcessor2_0
-from transformers import CLIPTextModel, CLIPTokenizer
-from lib_omost.pipeline import StableDiffusionXLOmostPipeline
-from chat_interface import ChatInterface
+from PIL import Image
+from transformers import (AutoModelForCausalLM, AutoTokenizer, CLIPTextModel,
+                          CLIPTokenizer, TextIteratorStreamer)
 from transformers.generation.stopping_criteria import StoppingCriteriaList
 
 import lib_omost.canvas as omost_canvas
-
+from chat_interface import ChatInterface
+from lib_omost.pipeline import StableDiffusionXLOmostPipeline
 
 # SDXL
 
@@ -72,11 +72,19 @@ memory_management.unload_all_models([text_encoder, text_encoder_2, vae, unet])
 llm_name = 'lllyasviel/omost-llama-3-8b-4bits'
 # model_name = 'lllyasviel/omost-dolphin-2.9-llama3-8b-4bits'
 
+# Determine the device based on availability
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+elif torch.backends.mps.is_available():
+    device = torch.device("mps")
+else:
+    device = torch.device("cpu")
+
 llm_model = AutoModelForCausalLM.from_pretrained(
     llm_name,
     torch_dtype=torch.bfloat16,  # This is computation type, not load/memory type. The loading quant type is baked in config.
     token=HF_TOKEN,
-    device_map="auto"  # This will load model to gpu with an offload system
+    device_map={"": device}  # Explicitly map the model to the chosen device
 )
 
 llm_tokenizer = AutoTokenizer.from_pretrained(

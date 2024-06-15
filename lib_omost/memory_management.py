@@ -1,13 +1,23 @@
-import torch
 from contextlib import contextmanager
 
+import torch
 
-high_vram = False
-gpu = torch.device('cuda')
-cpu = torch.device('cpu')
+# Determine the device based on availability
+if torch.cuda.is_available():
+    gpu = torch.device("cuda")
+elif torch.backends.mps.is_available():
+    gpu = torch.device("mps")
+else:
+    gpu = torch.device("cpu")
 
-torch.zeros((1, 1)).to(gpu, torch.float32)
-torch.cuda.empty_cache()
+cpu = torch.device("cpu")
+
+# Define high_vram (set it to False by default)
+high_vram = True
+
+# No need to test CUDA here; it's handled in the device selection
+# torch.zeros((1, 1)).to(gpu, torch.float32)
+# torch.cuda.empty_cache()
 
 models_in_gpu = []
 
@@ -46,10 +56,12 @@ def load_models_to_gpu(models):
     for m in models_to_load:
         with movable_bnb_model(m):
             m.to(gpu)
-        print('Load to GPU:', m.__class__.__name__)
+        print('Load to ', gpu, ':', m.__class__.__name__)
 
     models_in_gpu = list(set(models_in_gpu + models))
-    torch.cuda.empty_cache()
+    # Only use empty_cache if CUDA is available
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     return
 
 
